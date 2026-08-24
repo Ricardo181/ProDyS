@@ -19,6 +19,3 @@ dependencies:
       - einops>=0.7
       - timm>=0.9
       - opencv-python>=4.8
-
-# Preliminary baseline inferred from the manuscript.
-# Select the final PyTorch/CUDA build for the target machine before training.

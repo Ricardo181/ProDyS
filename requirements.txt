@@ -1,4 +1,3 @@
-# Preliminary baseline; validate against the released implementation.
 torch>=2.0,<2.6
 torchvision>=0.15,<0.21
 numpy>=1.24
