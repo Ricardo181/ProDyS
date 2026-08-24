@@ -1,0 +1,36 @@
+# Python and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.conda/
+.idea/
+.vscode/
+
+# Data and model artifacts
+data/
+datasets/
+checkpoints/
+pretrained/
+weights/
+*.pth
+*.pt
+*.ckpt
+*.onnx
+
+# Training outputs and generated predictions
+outputs/
+work_dirs/
+runs/
+predictions/
+*.log
+*.jsonl
+
+# OS and notebook artifacts
+.DS_Store
+.ipynb_checkpoints/
+
+# Local planning and temporary files
+.planning/
+tmp/

@@ -1,0 +1,13 @@
+# Preliminary baseline; validate against the released implementation.
+torch>=2.0,<2.6
+torchvision>=0.15,<0.21
+numpy>=1.24
+scipy>=1.10
+Pillow>=9.5
+opencv-python>=4.8
+matplotlib>=3.7
+scikit-learn>=1.2
+tqdm>=4.65
+PyYAML>=6.0
+einops>=0.7
+timm>=0.9
