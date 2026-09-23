@@ -10,9 +10,12 @@ env/
 
 # Data and model artifacts
 data/
-datasets/
+# Keep dataset loaders under datasets/, but not local medical images/volumes.
+datasets/*/
+lists/
 checkpoints/
 pretrained/
+pretrained_ckpt/
 weights/
 *.pth
 *.pt
@@ -21,11 +24,18 @@ weights/
 
 # Training outputs and generated predictions
 outputs/
+output/
+save_net/
 work_dirs/
 runs/
 predictions/
+pred_image/
+label_image/
+original/
+grad_cam_results/
 *.log
 *.jsonl
+*.bak
 
 # OS and notebook artifacts
 .DS_Store

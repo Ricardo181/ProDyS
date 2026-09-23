@@ -48,69 +48,95 @@ Medical image segmentation requires both accurate localization and robust featur
 
 ## Installation
 
-Create the Conda environment:
+Run the commands from the repository root. Training and evaluation require an NVIDIA GPU and a CUDA-enabled PyTorch installation. Create the Python environment:
 
 ```bash
 conda env create -f environment.yml
 conda activate prodys
 ```
 
-For a machine-specific CUDA installation, select the matching PyTorch command from the [official PyTorch installation selector](https://pytorch.org/get-started/locally/), then install the remaining packages with:
+Install PyTorch and torchvision for your CUDA driver using the [official PyTorch installation selector](https://pytorch.org/get-started/locally/), then install the source imports:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-The experimental configuration uses Python 3.10, 224x224 input images, batch size 8, 200 epochs, SGD, an initial learning rate of `1e-4`, momentum `0.9`, weight decay `1e-4`, and a minimum learning rate of `1e-5`.
+The training entry point loads Swin-Tiny initialization from `./pretrained_ckpt/swin_tiny_patch4_window7_224.pth`, as set in [the configuration](configs/swin_tiny_patch4_window7_224_lite.yaml). Obtain the compatible Swin-Tiny weights using the [SCUNet++ setup instructions](https://github.com/JustlfC03/SCUNet-plusplus#1-download-pretrained-model), and place the file there, or change `MODEL.PRETRAIN_CKPT` in the YAML file to your local checkpoint. The checkpoint should contain a `model` state dictionary in the format expected by `net.load_from`.
 
 ## Data Preparation
 
-The experiments use BUSI, ISIC2018, CVC_ClinicDB, and SMAE. Organize each dataset with a matching image/mask layout:
+Each split has a text file with one sample stem per line, without the extension. The `--list_dir` option points to the directory containing `train.txt` and `test.txt`. For BUSI and CVC_ClinicDB, use the following layout with `.png` images and masks:
 
 ```text
 data/
-├── BUSI/
-│   ├── images/
-│   └── masks/
-├── ISIC2018/
-│   ├── images/
-│   └── masks/
-├── CVC_ClinicDB/
-│   ├── images/
-│   └── masks/
-└── SMAE/
-    ├── images/
-    └── masks/
+└── BUSI/
+    ├── lists/
+    │   ├── train.txt
+    │   └── test.txt
+    ├── train/
+    │   ├── images/case_001.png
+    │   └── masks/case_001.png
+    └── test/
+        ├── images/case_002.png
+        └── masks/case_002.png
 ```
 
-Dataset information used in the experiments:
+Replace `BUSI` with `CVC_ClinicDB` for the CVC loader. For ISIC2018, keep the same directories but use `.jpg` images and `.png` or `.jpg` masks with matching stems. The loaders binarize masks at intensity 127 and resize training pairs to the configured input size; keep image/mask names synchronized. Use your own fixed train/test split files when comparing experiments.
 
-| Dataset | Description | Scale reported in the experiments |
-|---|---|---:|
-| BUSI | Breast ultrasound lesion segmentation | - |
-| ISIC2018 | Skin lesion segmentation | 2,694 images; 1,886 training and 808 testing images |
-| CVC_ClinicDB | Colon polyp segmentation | 612 images at 384x288 pixels |
-| SMAE | Superior mesenteric artery embolism segmentation | 626 images at approximately 512x512 pixels |
+The `Synapse` loader used for NPZ-format data expects a different layout:
 
-Prepare the data with the following conventions:
+```text
+data/SMAE/
+├── lists/
+│   ├── train.txt
+│   └── test.txt
+├── train_npz/case_001.npz
+└── test_vol_h5/case_002.npz
+```
 
-1. Keep each image and its binary mask under the corresponding `images/` and `masks/` directories.
-2. Use the same filename stem for an image and its mask, for example `case_001.png` and `case_001.png`.
-3. Resize input images to `224x224` for model input. Use nearest-neighbor interpolation for masks.
-4. Apply random cropping and rotation to the training images and masks with the same random parameters.
-5. Use the 7:3 training/testing split reported for ISIC2018; keep the split fixed when comparing models.
+Each `.npz` must contain `image` and `label` arrays. In this loader, `image` is expected to be a two-dimensional grayscale image and `label` a matching mask encoded as 0/255; the loader converts the image to three channels and binarizes the mask. Despite the `test_vol_h5` directory name, this implementation reads `.npz` files there. Select this loader with `--dataset Synapse` and point `--root_path`/`--volume_path` to `data/SMAE`. Public datasets should be obtained from their original providers and used under their respective terms.
 
-Public datasets should be obtained from their original dataset pages and used according to their respective terms. The SMAE directory follows the same layout.
+## Training and Evaluation
+
+The following BUSI example enables all three method components: `--pbb` (multi-branch enhancement), `--x4` (enhanced up-sampling), and `--fb` (feature bank). The same entry points accept `--dataset isic2018` or `--dataset cvc` with the corresponding paths and file conventions above.
+
+```bash
+python train.py \
+  --dataset busi \
+  --root_path ./data/BUSI \
+  --list_dir ./data/BUSI/lists \
+  --cfg ./configs/swin_tiny_patch4_window7_224_lite.yaml \
+  --output_dir ./output/busi \
+  --device 0 --img_size 224 --batch_size 24 --max_epochs 200 \
+  --fb --x4 --pbb
+```
+
+The training script uses SGD with momentum `0.9`, weight decay `1e-4`, and a polynomial learning-rate schedule; its default initial learning rate is `0.005`. It saves checkpoints under `--output_dir`, including `epoch_199.pth` for the 200-epoch example. Evaluate that checkpoint with the same module flags:
+
+```bash
+python test.py \
+  --dataset busi \
+  --volume_path ./data/BUSI \
+  --list_dir ./data/BUSI/lists \
+  --cfg ./configs/swin_tiny_patch4_window7_224_lite.yaml \
+  --output_dir ./output/busi \
+  --output_file_name ./output/busi/epoch_199.pth \
+  --device 0 --img_size 224 \
+  --fb --x4 --pbb
+```
+
+Evaluation prints Dice, HD95, sensitivity, specificity, accuracy, and IoU, and writes predicted and reference masks into `pred_image/` and `label_image/` in the current working directory.
+
+## Repository Layout
+
+| Path | Purpose |
+|---|---|
+| `train.py`, `trainer.py`, `test.py` | Training and evaluation entry points |
+| `networks/` | Swin-Unet backbone and ProDyS modules |
+| `datasets/` | Dataset readers and augmentation |
+| `configs/` and `config.py` | Model configuration |
+| `docs/` and `assets/figures/` | Method details and figures |
 
 ## Acknowledgements
 
-The project builds on the medical image segmentation literature and compares against U-Net, Transformer, Mamba, and hybrid segmentation models.
-
-## Citation
-
-```bibtex
-@article{prodys,
-  title  = {ProDyS: Self-Supervised Feature Learning with Prototype-Guided Context Fusion and Progressive Optimization},
-  author = {ProDyS}
-}
-```
+The implementation builds on [SCUNet++](https://github.com/JustlfC03/SCUNet-plusplus) and the Swin-Unet architecture. The upstream MIT license notice is retained in [LICENSE](LICENSE).
